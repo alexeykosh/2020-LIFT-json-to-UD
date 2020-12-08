@@ -1,37 +1,37 @@
 import pympi
 import string
 import re
-import numpy as np
 from os import walk
 import itertools
 
 
 class EafToUD:
-    def __init__(self, directory:str, sent_tier:str, morph_tier:str):
+    def __init__(self, directory: str, sent_tier: str, morph_tier: str):
         self.ud_temp = []
         self.directory = directory
         self.sent_tier = sent_tier
         self.morph_tier = morph_tier
         self.files = self.get_list_of_files()
         self.instances = self.make_pympi_instances()
-        
+        self.glosses = []
+
     def get_list_of_files(self):
         files = []
         for (dirpath, dirnames, filenames) in walk(self.directory):
             files.extend([i for i in filenames if '.eaf' in i])
             break
         return files
-    
+
     def make_pympi_instances(self):
         instances = []
-        for file in self.files: 
+        for file in self.files:
             if '.eaf' in file:
                 print('{}/{}'.format(self.directory, file))
-                instances.append(pympi.Elan.Eaf(file_path='{}/{}'.format(self.directory, file)))
+                instances.append(pympi.Elan.Eaf(
+                    file_path='{}/{}'.format(self.directory, file)))
         return instances
-    
-    @staticmethod
-    def make_gloss(gloss):
+
+    def make_gloss(self, gloss):
         gloss = re.sub(r'[а-я]|[А-Я]', '', gloss)
         gloss = re.sub(r'-', '|', gloss)
         gloss = re.sub(r'_', '', gloss)
@@ -41,48 +41,77 @@ class EafToUD:
         gloss = re.sub(r'ё', '', gloss)
         gloss = re.sub(r'\[', '', gloss)
         gloss = re.sub(r'\]', '', gloss)
-        gloss = re.sub(r'(\|)+', '|', gloss) 
+        gloss = re.sub(r'(\|)+', '|', gloss)
         gloss = re.sub(r'-$|^-', '', gloss)
         gloss = re.sub(r'\|$|^\|', '', gloss)
-        return(gloss)
-    
+        self.glosses.append(gloss)
+        return gloss
+
     @staticmethod
     def make_text(text):
         textt = text.lower()
         textt = re.sub('\[.*\]', '', textt)
-        textt = re.sub(r'[^\w\s]','',textt)
+        textt = re.sub(r'[^\w\s]', '', textt)
         textt = textt.replace('i', 'I')
         return textt
-    
+
     def format_ud(self):
         ud_format = []
         u = 1
         idx = 1
         for instance in self.instances:
-            sent_full = [j[2] for _, j in instance.tiers[self.sent_tier][0].items()]
+            sent_full = [j[2] for _, j in
+                         instance.tiers[self.sent_tier][0].items()]
             sent = [j[2].lower().translate(str.
-                                           maketrans('', '', string.punctuation)).split(' ')
-                    for _, j in instance.tiers[self.sent_tier][0].items()]
-            
-            gloss = [j[1] for _, j in instance.tiers[self.morph_tier][1].items()]
+                                           maketrans('', '',
+                                                     string.punctuation)).split(
+                ' ')
+                for _, j in instance.tiers[self.sent_tier][0].items()]
+
+            gloss = [j[1] for _, j in
+                     instance.tiers[self.morph_tier][1].items()]
             k = 0
             for i in range(len(sent)):
-                ud_format.append('\n# sent_id = {}\n# text_name = {}\n# text = {}\n# text_init = {}\n'.
-                                 format(idx, self.files[u-1], self.make_text(sent_full[i]), sent_full[i]))
+                ud_format.append(
+                    '\n# sent_id = {}\n# text_name = {}\n# text = {}\n# '
+                    'text_init = {}\n'.
+                        format(idx, self.files[u - 1],
+                               self.make_text(sent_full[i]),
+                               sent_full[i]))
                 idx += 1
                 sentence = sent[i]
-                glosses = gloss[k:k+len(sent[i])]
-                k+=len(sent[i])
-                
+                glosses = gloss[k:k + len(sent[i])]
+                k += len(sent[i])
+
                 num = 1
                 for j in range(len(sentence)):
                     ud_format.append('{}\t{}\t_\t_\t_\t{}\t_\t_\t_\tGloss={}\n'.
-                                     format(num, sentence[j], self.make_gloss(glosses[j]), glosses[j]))
+                                     format(num, sentence[j],
+                                            self.make_gloss(glosses[j]),
+                                            glosses[j]))
                     num += 1
-            u+=1     
+            u += 1
         return ud_format
-        
+
     def make_conll_file(self, filename):
         content = self.format_ud()
-        with open(filename, "w") as text_file:
-            text_file.write(''.join(content))
+        with open(filename, "w") as file:
+            file.write(''.join(content))
+
+    def make_gloss_file(self, filename):
+        lines = []
+        unique = set(itertools.chain(*[i.split('|') for
+                                       i in self.glosses]))
+        for gloss in unique:
+            if len(gloss) > 1:
+                lines.append('_\t_\t{}\t_\t_\t_\t_\t_\n'.format(gloss))
+        with open(filename, "w") as file:
+            file.write(''.join(lines))
+
+
+if __name__ == '__main__':
+    eaf_transformer = EafToUD(directory='ELAN',
+                              sent_tier='Orth-txt-abq',
+                              morph_tier='Gloss-gls-ru')
+    eaf_transformer.make_conll_file('fff.conll')
+    eaf_transformer.make_gloss_file('aaa.udx')
