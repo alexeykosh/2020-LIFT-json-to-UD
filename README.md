@@ -1,5 +1,4 @@
 ## From Elan to Universal Dependecies
-### Alexey Koshevoy
 
 Clone this repository:
 
