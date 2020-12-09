@@ -108,10 +108,3 @@ class EafToUD:
         with open(filename, "w") as file:
             file.write(''.join(lines))
 
-
-if __name__ == '__main__':
-    eaf_transformer = EafToUD(directory='ELAN',
-                              sent_tier='Orth-txt-abq',
-                              morph_tier='Gloss-gls-ru')
-    eaf_transformer.make_conll_file('fff.conll')
-    eaf_transformer.make_gloss_file('aaa.udx')
